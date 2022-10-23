@@ -114,6 +114,11 @@ struct drop_t {
 static void
 drop_message(struct skynet_message *msg, void *ud) {
 	struct drop_t *d = ud;
+	if ((msg->sz >> MESSAGE_TYPE_SHIFT) == PTYPE_SOCKET)
+	{
+		struct skynet_socket_message *sm = msg->data;
+		skynet_free(sm->buffer);
+	}
 	skynet_free(msg->data);
 	uint32_t source = d->handle;
 	assert(source);
@@ -260,6 +265,7 @@ skynet_isremote(struct skynet_context * ctx, uint32_t handle, int * harbor) {
 static void
 dispatch_message(struct skynet_context *ctx, struct skynet_message *msg) {
 	assert(ctx->init);
+	assert(ctx->cb != NULL);
 	CHECKCALLING_BEGIN(ctx)
 	pthread_setspecific(G_NODE.handle_key, (void *)(uintptr_t)(ctx->handle));
 	int type = msg->sz >> MESSAGE_TYPE_SHIFT;
@@ -329,17 +335,7 @@ skynet_context_message_dispatch(struct skynet_monitor *sm, struct message_queue 
 
 		skynet_monitor_trigger(sm, msg.source , handle);
 
-		if (ctx->cb == NULL) {
-			// 当msg.data为skynet_socket_message时，需要释放 sm->buffer
-			if ((msg.sz >> MESSAGE_TYPE_SHIFT) == PTYPE_SOCKET)
-			{
-				struct skynet_socket_message *sm = msg.data;
-				skynet_free(sm->buffer);
-			}
-			skynet_free(msg.data);
-		} else {
-			dispatch_message(ctx, &msg);
-		}
+		dispatch_message(ctx, &msg);
 
 		skynet_monitor_trigger(sm, 0,0);
 	}
